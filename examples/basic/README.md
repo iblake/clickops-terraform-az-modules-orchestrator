@@ -129,17 +129,28 @@ The module uses a JSON configuration file (`terraform.tfvars.json`) to define re
 
 ## Module Structure
 
+This orchestrator follows the same pattern as the OCI orchestrator with resources organized by functionality:
+
 ```
 terraform-azure-orchestrator/
-├── modules/
-│   ├── compute/
-│   │   ├── main.tf       # Resource creation logic
-│   │   ├── variables.tf  # Input variables
-│   │   └── outputs.tf    # Output definitions
-│   ├── iam/             # IAM module
-│   └── monitoring/      # Monitoring module
+├── iam.tf           # Resource groups, roles, role assignments
+├── networking.tf    # Virtual networks, subnets, network security groups
+├── compute.tf       # Virtual machines and network interfaces
+├── storage.tf       # Storage accounts, containers, file shares
+├── security.tf      # Key vaults and bastion hosts
+├── monitoring.tf    # Log analytics workspaces and metric alerts
+├── main.tf          # Main entry point (simplified)
+├── variables.tf     # Input variable definitions
+├── outputs.tf       # Output definitions
+├── locals.tf        # Local variable definitions
+├── versions.tf      # Version constraints
+├── providers.tf     # Provider configuration
+├── modules/         # Additional modules (if needed)
+│   ├── compute/     # VM and related resources
+│   ├── iam/         # Identity and access management
+│   └── monitoring/  # Logging and alerting
 ├── examples/
-│   └── basic/           # This example
+│   └── basic/       # This example
 └── README.md
 ```
 

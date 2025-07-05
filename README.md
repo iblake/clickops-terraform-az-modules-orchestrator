@@ -39,20 +39,28 @@ This orchestrator follows the exact same pattern as the OCI orchestrator for man
 
 ## Module Structure
 
+This orchestrator follows the same pattern as the OCI orchestrator with resources organized by functionality:
+
 ```
 terraform-azure-orchestrator/
-├── main.tf           # Main module configuration
-├── variables.tf      # Input variable definitions
-├── outputs.tf        # Output definitions
-├── locals.tf         # Local variable definitions
-├── versions.tf       # Version constraints
-├── providers.tf      # Provider configuration
-├── modules/
-│   ├── compute/      # VM and related resources
-│   ├── iam/          # Identity and access management
-│   └── monitoring/   # Logging and alerting
+├── iam.tf           # Resource groups, roles, role assignments
+├── networking.tf    # Virtual networks, subnets, network security groups
+├── compute.tf       # Virtual machines and network interfaces
+├── storage.tf       # Storage accounts, containers, file shares
+├── security.tf      # Key vaults and bastion hosts
+├── monitoring.tf    # Log analytics workspaces and metric alerts
+├── main.tf          # Main entry point (simplified)
+├── variables.tf     # Input variable definitions
+├── outputs.tf       # Output definitions
+├── locals.tf        # Local variable definitions
+├── versions.tf      # Version constraints
+├── providers.tf     # Provider configuration
+├── modules/         # Additional modules (if needed)
+│   ├── compute/     # VM and related resources
+│   ├── iam/         # Identity and access management
+│   └── monitoring/  # Logging and alerting
 ├── examples/
-│   └── basic/        # Basic usage example
+│   └── basic/       # Basic usage example
 └── README.md
 ```
 
