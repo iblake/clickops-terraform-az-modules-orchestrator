@@ -39,20 +39,28 @@ This orchestrator follows the exact same pattern as the OCI orchestrator for man
 
 ## Module Structure
 
+This orchestrator follows the same pattern as the OCI orchestrator with resources organized by functionality:
+
 ```
 terraform-azure-orchestrator/
-├── main.tf           # Main module configuration
-├── variables.tf      # Input variable definitions
-├── outputs.tf        # Output definitions
-├── locals.tf         # Local variable definitions
-├── versions.tf       # Version constraints
-├── providers.tf      # Provider configuration
-├── modules/
-│   ├── compute/      # VM and related resources
-│   ├── iam/          # Identity and access management
-│   └── monitoring/   # Logging and alerting
+├── iam.tf           # Resource groups, roles, role assignments
+├── networking.tf    # Virtual networks, subnets, network security groups
+├── compute.tf       # Virtual machines and network interfaces
+├── storage.tf       # Storage accounts, containers, file shares
+├── security.tf      # Key vaults and bastion hosts
+├── monitoring.tf    # Log analytics workspaces and metric alerts
+├── main.tf          # Main entry point (simplified)
+├── variables.tf     # Input variable definitions
+├── outputs.tf       # Output definitions
+├── locals.tf        # Local variable definitions
+├── versions.tf      # Version constraints
+├── providers.tf     # Provider configuration
+├── modules/         # Additional modules (if needed)
+│   ├── compute/     # VM and related resources
+│   ├── iam/         # Identity and access management
+│   └── monitoring/  # Logging and alerting
 ├── examples/
-│   └── basic/        # Basic usage example
+│   └── basic/       # Basic usage example
 └── README.md
 ```
 
@@ -327,4 +335,10 @@ storage_configuration = {
 
 ## License
 
-This module is licensed under the MIT License. See the LICENSE file for details. 
+This module is licensed under the MIT License. See the LICENSE file for details.
+
+## ⚠️ Important: Network and Subnet Creation
+
+By default, this orchestrator will always attempt to create the virtual network (VNet) and subnets defined in your configuration. If a VNet or subnet with the same name already exists in the target resource group, **Terraform will fail with a 'resource already exists' error**.
+
+If you want to use existing networks or subnets, you will need to adapt the code to use `data` sources and conditional logic. This feature is not yet implemented in the current version, but the codebase is structured to allow for this extension in the future. 

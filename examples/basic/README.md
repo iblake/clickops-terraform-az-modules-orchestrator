@@ -129,17 +129,28 @@ The module uses a JSON configuration file (`terraform.tfvars.json`) to define re
 
 ## Module Structure
 
+This orchestrator follows the same pattern as the OCI orchestrator with resources organized by functionality:
+
 ```
 terraform-azure-orchestrator/
-├── modules/
-│   ├── compute/
-│   │   ├── main.tf       # Resource creation logic
-│   │   ├── variables.tf  # Input variables
-│   │   └── outputs.tf    # Output definitions
-│   ├── iam/             # IAM module
-│   └── monitoring/      # Monitoring module
+├── iam.tf           # Resource groups, roles, role assignments
+├── networking.tf    # Virtual networks, subnets, network security groups
+├── compute.tf       # Virtual machines and network interfaces
+├── storage.tf       # Storage accounts, containers, file shares
+├── security.tf      # Key vaults and bastion hosts
+├── monitoring.tf    # Log analytics workspaces and metric alerts
+├── main.tf          # Main entry point (simplified)
+├── variables.tf     # Input variable definitions
+├── outputs.tf       # Output definitions
+├── locals.tf        # Local variable definitions
+├── versions.tf      # Version constraints
+├── providers.tf     # Provider configuration
+├── modules/         # Additional modules (if needed)
+│   ├── compute/     # VM and related resources
+│   ├── iam/         # Identity and access management
+│   └── monitoring/  # Logging and alerting
 ├── examples/
-│   └── basic/           # This example
+│   └── basic/       # This example
 └── README.md
 ```
 
@@ -185,4 +196,10 @@ terraform destroy
 4. **VM Access**:
    - VM is created without public IP for security
    - Access through private IP within VNet
-   - Use Azure Bastion or VPN for external access 
+   - Use Azure Bastion or VPN for external access
+
+## ⚠️ Important: Network and Subnet Creation
+
+By default, this example will always attempt to create the virtual network (VNet) and subnets defined in your configuration. If a VNet or subnet with the same name already exists in the target resource group, **Terraform will fail with a 'resource already exists' error**.
+
+If you want to use existing networks or subnets, you will need to adapt the code to use `data` sources and conditional logic. This feature is not yet implemented in the current version, but the codebase is structured to allow for this extension in the future. 
