@@ -18,6 +18,15 @@ locals {
     ]...) : {}
   ) : {}
 
+  # Map to get vnet key for a given subnet key
+  get_vnet_key_for_subnet = var.network_configuration != null ? (
+    var.network_configuration.vnets != null ? merge([
+      for vnet_key, vnet in var.network_configuration.vnets : {
+        for subnet_key, subnet in try(vnet.subnets, {}) : subnet_key => vnet_key
+      }
+    ]...) : {}
+  ) : {}
+
   # Flattened containers for easier iteration
   flattened_containers = var.storage_configuration != null ? (
     var.storage_configuration.storage_accounts != null ? merge([

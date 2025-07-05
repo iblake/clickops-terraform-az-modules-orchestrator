@@ -3,12 +3,12 @@ variable "configuration" {
   type = object({
     vms = map(object({
       name                = string
-      resource_group_id   = string
-      subnet_id          = string
+      resource_group_name = string
+      location           = string
       size               = string
       admin_username     = string
       admin_ssh_key      = string
-      public_ip         = bool
+      subnet_id          = string
       os_disk = object({
         name                 = optional(string)
         caching              = string
@@ -21,6 +21,12 @@ variable "configuration" {
         sku       = string
         version   = string
       })
+      public_ip = optional(object({
+        name              = string
+        allocation_method = string
+        sku              = string
+      }))
+      tags = optional(map(string))
     }))
   })
 }

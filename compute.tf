@@ -1,6 +1,11 @@
 # Copyright (c) 2024 Blake and/or its affiliates.
 # Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl.
 
+# Compute resources are now managed directly in this file
+# The compute module has been refactored to follow proper separation of concerns:
+# - Resource groups, VNets, and subnets are managed by the orchestrator (iam.tf, networking.tf)
+# - Only VM-specific resources (network interfaces, public IPs, VMs) are managed here
+
 # Network Interfaces
 resource "azurerm_network_interface" "these" {
   for_each = var.compute_configuration != null ? (
@@ -14,7 +19,7 @@ resource "azurerm_network_interface" "these" {
 
   ip_configuration {
     name                          = try(each.value.network_interface.ip_configuration.name, "internal")
-    subnet_id                     = azurerm_subnet.these["${each.value.resource_group_key}-${each.value.network_interface.subnet_key}"].id
+    subnet_id                     = azurerm_subnet.these["${local.get_vnet_key_for_subnet[each.value.network_interface.subnet_key]}-${each.value.network_interface.subnet_key}"].id
     private_ip_address_allocation = each.value.network_interface.ip_configuration.private_ip_address_allocation
     private_ip_address           = try(each.value.network_interface.ip_configuration.private_ip_address, null)
   }
@@ -70,4 +75,6 @@ resource "azurerm_linux_virtual_machine" "these" {
     sku       = each.value.source_image_reference.sku
     version   = each.value.source_image_reference.version
   }
-} 
+}
+
+ 
