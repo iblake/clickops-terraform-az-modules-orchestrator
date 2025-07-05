@@ -2,6 +2,13 @@
 
 This module provides a flexible and modular approach to managing Azure resources. It follows a similar structure to the OCI Landing Zones Orchestrator, allowing you to manage multiple resource types through a single, consistent configuration interface.
 
+## Prerequisites
+
+1. Azure Subscription
+2. Azure CLI installed and configured
+3. Terraform >= 1.0.0 (updated from 1.3.0)
+4. Azure Service Principal with required permissions
+
 ## Authentication and Sensitive Parameters
 
 This orchestrator follows the exact same pattern as the OCI orchestrator for managing credentials and sensitive parameters:
@@ -30,50 +37,6 @@ This orchestrator follows the exact same pattern as the OCI orchestrator for man
 - **Compute**: Linux virtual machines with network interfaces
 - **Storage**: Storage accounts, containers, and file shares
 
-## Prerequisites
-
-1. Azure Subscription
-2. Azure CLI installed and configured
-3. Terraform >= 1.3.0
-4. Azure Service Principal with required permissions
-5. Basic understanding of Azure resource management
-
-## Quick Start
-
-1. Configure Azure credentials as environment variables:
-```bash
-export ARM_SUBSCRIPTION_ID="your-subscription-id"
-export ARM_TENANT_ID="your-tenant-id"
-export ARM_CLIENT_ID="your-client-id"
-export ARM_CLIENT_SECRET="your-client-secret"
-```
-
-2. Create a basic configuration file (`terraform.tfvars.json`):
-```json
-{
-  "iam_configuration": {
-    "resource_groups": {
-      "example-rg": {
-        "name": "example-rg",
-        "location": "eastus",
-        "tags": {
-          "environment": "dev"
-        }
-      }
-    }
-  }
-}
-```
-
-3. Use the module in your Terraform configuration:
-```hcl
-module "azure_orchestrator" {
-  source = "path/to/terraform-azure-orchestrator"
-
-  # Configuration is loaded from terraform.tfvars.json
-}
-```
-
 ## Module Structure
 
 ```
@@ -82,17 +45,14 @@ terraform-azure-orchestrator/
 ├── variables.tf      # Input variable definitions
 ├── outputs.tf        # Output definitions
 ├── locals.tf         # Local variable definitions
+├── versions.tf       # Version constraints
+├── providers.tf      # Provider configuration
 ├── modules/
 │   ├── compute/      # VM and related resources
 │   ├── iam/          # Identity and access management
-│   ├── monitoring/   # Logging and alerting
-│   ├── network/      # Network resources
-│   ├── security/     # Security resources
-│   └── storage/      # Storage resources
+│   └── monitoring/   # Logging and alerting
 ├── examples/
-│   ├── basic/        # Basic usage example
-│   ├── complete/     # Complete usage example
-│   └── free-tier/    # Free tier compatible example
+│   └── basic/        # Basic usage example
 └── README.md
 ```
 
@@ -107,29 +67,25 @@ iam_configuration = {
   resource_groups = {
     key = {
       name     = string
-      location = string
-      tags     = map(string)
+      location = optional(string)
+      tags     = optional(map(string))
     }
   }
-  roles = {
-    key = {
-      name        = string
-      description = string
-      permissions = list(object({
-        actions          = list(string)
-        not_actions      = list(string)
-        data_actions     = list(string)
-        not_data_actions = list(string)
-      }))
-    }
-  }
-  role_assignments = {
-    key = {
-      role_name     = string
-      principal_id  = string
-      scope         = string
-    }
-  }
+  roles = optional(map(object({
+    name        = string
+    description = string
+    permissions = list(object({
+      actions          = list(string)
+      not_actions      = optional(list(string))
+      data_actions     = optional(list(string))
+      not_data_actions = optional(list(string))
+    }))
+  })))
+  role_assignments = optional(map(object({
+    role_name    = string
+    principal_id = string
+    scope        = string
+  })))
 }
 ```
 
@@ -142,34 +98,36 @@ network_configuration = {
       name                = string
       resource_group_key = string
       address_space      = list(string)
-      dns_servers        = list(string)
-      subnets = {
-        key = {
-          name              = string
-          address_prefixes  = list(string)
-          security_group    = string
-          service_endpoints = list(string)
-        }
-      }
+      dns_servers        = optional(list(string))
+      subnets = optional(map(object({
+        name              = string
+        address_prefixes  = list(string)
+        security_group    = optional(string)
+        service_endpoints = optional(list(string))
+        delegation = optional(map(object({
+          name    = string
+          actions = list(string)
+        })))
+      })))
+      tags = optional(map(string))
     }
   }
-  network_security_groups = {
-    key = {
-      name               = string
-      resource_group_key = string
-      rules = list(object({
-        name                       = string
-        priority                   = number
-        direction                  = string
-        access                     = string
-        protocol                   = string
-        source_port_range         = string
-        destination_port_range    = string
-        source_address_prefix     = string
-        destination_address_prefix = string
-      }))
-    }
-  }
+  network_security_groups = optional(map(object({
+    name               = string
+    resource_group_key = string
+    rules = optional(list(object({
+      name                       = string
+      priority                   = number
+      direction                  = string
+      access                     = string
+      protocol                   = string
+      source_port_range         = string
+      destination_port_range    = string
+      source_address_prefix     = string
+      destination_address_prefix = string
+    })))
+    tags = optional(map(string))
+  })))
 }
 ```
 
@@ -177,30 +135,28 @@ network_configuration = {
 
 ```hcl
 security_configuration = {
-  key_vaults = {
-    key = {
-      name                = string
-      resource_group_key = string
-      sku_name           = string
-      tenant_id          = string
-      access_policies    = list(object({
-        tenant_id = string
-        object_id = string
-        key_permissions = list(string)
-        secret_permissions = list(string)
-        certificate_permissions = list(string)
-      }))
-    }
-  }
-  bastions = {
-    key = {
-      name                = string
-      resource_group_key = string
-      vnet_key           = string
-      subnet_key         = string
-      public_ip_name     = string
-    }
-  }
+  key_vaults = optional(map(object({
+    name                = string
+    resource_group_key = string
+    sku_name           = string
+    tenant_id          = string
+    access_policies = optional(list(object({
+      tenant_id               = string
+      object_id              = string
+      key_permissions        = list(string)
+      secret_permissions     = list(string)
+      certificate_permissions = list(string)
+    })))
+    tags = optional(map(string))
+  })))
+  bastions = optional(map(object({
+    name                = string
+    resource_group_key = string
+    vnet_key           = string
+    subnet_key         = string
+    public_ip_name     = string
+    tags               = optional(map(string))
+  })))
 }
 ```
 
@@ -208,31 +164,33 @@ security_configuration = {
 
 ```hcl
 monitoring_configuration = {
-  log_analytics = {
-    key = {
-      name                = string
-      resource_group_key = string
-      retention_in_days   = number
-    }
-  }
-  alerts = {
-    key = {
-      name                = string
-      resource_group_key = string
-      scopes             = list(string)
-      description        = string
-      severity           = number
-      frequency         = string
-      window_size       = string
-      criteria          = object({
-        metric_namespace = string
-        metric_name     = string
-        aggregation     = string
-        operator        = string
-        threshold       = number
-      })
-    }
-  }
+  log_analytics = optional(map(object({
+    name                = string
+    resource_group_key = string
+    retention_in_days   = optional(number)
+    tags                = optional(map(string))
+  })))
+  alerts = optional(map(object({
+    name                = string
+    resource_group_key = string
+    scopes             = list(string)
+    description        = string
+    severity          = number
+    frequency         = string
+    window_size       = string
+    criteria = object({
+      metric_namespace = string
+      metric_name     = string
+      aggregation     = string
+      operator        = string
+      threshold       = number
+    })
+    action = optional(object({
+      action_group_id = string
+      webhook        = optional(string)
+    }))
+    tags = optional(map(string))
+  })))
 }
 ```
 
@@ -240,34 +198,65 @@ monitoring_configuration = {
 
 ```hcl
 compute_configuration = {
-  vms = {
-    key = {
-      name                = string
-      resource_group_key = string
-      size               = string
-      admin_username     = string
-      admin_ssh_key      = string
-      network_interface = object({
-        subnet_key      = string
-        ip_configuration = object({
-          name                          = string
-          private_ip_address_allocation = string
-        })
+  vms = optional(map(object({
+    name                = string
+    resource_group_key = string
+    location           = optional(string)
+    size               = string
+    admin_username     = string
+    admin_ssh_key      = string
+    os_disk = object({
+      name                 = optional(string)
+      caching             = string
+      storage_account_type = string
+      disk_size_gb        = number
+    })
+    source_image_reference = object({
+      publisher = string
+      offer     = string
+      sku       = string
+      version   = string
+    })
+    network_interface = object({
+      name      = optional(string)
+      subnet_key = string
+      ip_configuration = object({
+        name                          = optional(string)
+        private_ip_address_allocation = string
+        private_ip_address           = optional(string)
+        public_ip_address = optional(object({
+          name              = string
+          allocation_method = string
+          sku              = string
+          tags             = optional(map(string))
+        }))
       })
-      os_disk = object({
-        name                 = string
-        caching             = string
-        storage_account_type = string
-        disk_size_gb        = number
-      })
-      source_image_reference = object({
-        publisher = string
-        offer     = string
-        sku       = string
-        version   = string
-      })
-    }
-  }
+    })
+    tags = optional(map(string))
+  })))
+}
+```
+
+### Storage Configuration
+
+```hcl
+storage_configuration = {
+  storage_accounts = optional(map(object({
+    name                     = string
+    resource_group_key      = string
+    account_tier            = string
+    account_replication_type = string
+    account_kind           = string
+    containers = optional(map(object({
+      name                  = string
+      container_access_type = string
+    })))
+    file_shares = optional(map(object({
+      name        = string
+      quota_in_gb = number
+    })))
+    tags = optional(map(string))
+  })))
 }
 ```
 

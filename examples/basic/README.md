@@ -9,7 +9,7 @@ This example demonstrates how to use the Azure Orchestrator module to create a b
 
 1. Azure Subscription
 2. Azure CLI installed and configured
-3. Terraform >= 1.3.0
+3. Terraform >= 1.0.0
 4. Azure Service Principal with required permissions
 5. SSH key pair for VM access
 
@@ -127,13 +127,6 @@ The module uses a JSON configuration file (`terraform.tfvars.json`) to define re
 }
 ```
 
-## File Structure
-
-- `credentials.auto.tfvars.json`: Azure authentication credentials
-- `terraform.tfvars.json`: Resource configuration (resource groups, network, VMs)
-- `main.tf`: Main Terraform configuration
-- `outputs.tf`: Module outputs
-
 ## Module Structure
 
 ```
@@ -143,7 +136,8 @@ terraform-azure-orchestrator/
 │   │   ├── main.tf       # Resource creation logic
 │   │   ├── variables.tf  # Input variables
 │   │   └── outputs.tf    # Output definitions
-│   └── monitoring/       # Future monitoring module
+│   ├── iam/             # IAM module
+│   └── monitoring/      # Monitoring module
 ├── examples/
 │   └── basic/           # This example
 └── README.md

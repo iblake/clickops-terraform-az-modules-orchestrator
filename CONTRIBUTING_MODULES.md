@@ -1,177 +1,233 @@
-# Guía de Desarrollo de Módulos para el Orquestador Azure
+# Module Development Guide for Azure Orchestrator
 
-Esta guía explica en detalle cómo desarrollar módulos adicionales que sean compatibles con el orquestador Azure. El diseño sigue un patrón específico que permite una integración fluida y una experiencia consistente.
+This guide explains in detail how to develop additional modules that are compatible with the Azure orchestrator. The design follows the same pattern as the OCI orchestrator to ensure consistency and seamless integration.
 
-## Principios de Diseño
+## Design Principles
 
-### 1. Estructura de Entrada
-Los módulos deben recibir su configuración a través de un objeto estructurado que siga este patrón:
+### 1. Input Structure
+Modules should receive their configuration through a structured object following this pattern:
 
 ```hcl
 variable "configuration" {
-  description = "Objeto de configuración principal del módulo"
+  description = "Module's main configuration object"
   type = object({
     resource_type = map(object({
-      # Propiedades específicas del recurso
+      # Resource-specific properties
     }))
   })
 }
 ```
 
-### 2. Referencias entre Recursos
-Los módulos deben recibir mapas de IDs para referenciar recursos externos:
+### 2. Resource References
+Modules should receive ID maps to reference external resources:
 
 ```hcl
 variable "resource_group_ids" {
-  description = "Mapa de resource_group_key a ID"
+  description = "Map of resource_group_key to ID"
   type = map(string)
 }
 
 variable "subnet_ids" {
-  description = "Mapa de subnet_key a ID"
+  description = "Map of subnet_key to ID"
   type = map(string)
 }
 ```
 
-## Estructura del Módulo
+## Module Structure
 
 ```plaintext
 modules/
 └── your_module/
-    ├── main.tf       # Recursos principales
-    ├── variables.tf  # Definición de variables
-    ├── outputs.tf    # Outputs estandarizados
-    └── README.md     # Documentación específica
+    ├── main.tf       # Main resources
+    ├── variables.tf  # Variable definitions
+    ├── outputs.tf    # Standardized outputs
+    └── README.md     # Module-specific documentation
 ```
 
-## Ejemplo Práctico: Módulo de Storage Account
+## Authentication and Sensitive Data
 
-Veamos un ejemplo completo de cómo implementar un módulo de Storage Account:
+All modules should follow the same authentication pattern as the OCI orchestrator:
+
+1. **Credentials**:
+   - Use `credentials.auto.tfvars.json` for authentication
+   - Never commit credential files to version control
+   - Provide example files with `.example` extension
+
+2. **Sensitive Variables**:
+   - Mark sensitive outputs with `sensitive = true`
+   - Use variables for all sensitive values
+   - Follow the same security practices as OCI orchestrator
+
+## Practical Example: Compute Module
+
+Let's see a complete example of how to implement a compute module:
 
 ### 1. variables.tf
 ```hcl
 variable "configuration" {
-  description = "Configuración de Storage Accounts"
+  description = "Virtual Machines configuration"
   type = object({
-    storage_accounts = map(object({
+    vms = map(object({
       name                = string
       resource_group_key = string
-      tier               = string
-      replication_type   = string
-      network_rules = optional(object({
-        default_action    = string
-        ip_rules         = list(string)
-        subnet_keys      = list(string)
-      }))
+      size               = string
+      admin_username     = string
+      admin_ssh_key      = string
+      network_interface = object({
+        subnet_key = string
+        ip_configuration = object({
+          name                          = string
+          private_ip_address_allocation = string
+        })
+      })
+      os_disk = object({
+        name                 = string
+        caching              = string
+        storage_account_type = string
+        disk_size_gb        = number
+      })
+      source_image_reference = object({
+        publisher = string
+        offer     = string
+        sku       = string
+        version   = string
+      })
     }))
   })
 }
 
 variable "resource_group_ids" {
-  description = "Mapa de resource_group_key a ID"
+  description = "Map of resource_group_key to ID"
   type = map(string)
 }
 
 variable "subnet_ids" {
-  description = "Mapa de subnet_key a ID"
+  description = "Map of subnet_key to ID"
   type = map(string)
 }
 ```
 
 ### 2. main.tf
 ```hcl
-# Data source para Resource Groups
+# Resource Groups data source
 data "azurerm_resource_group" "rg" {
   for_each = toset([
-    for sa in var.configuration.storage_accounts : sa.resource_group_key
+    for vm in var.configuration.vms : vm.resource_group_key
   ])
   name = var.resource_group_ids[each.value]
 }
 
-# Network Rules
-locals {
-  network_rules = {
-    for k, v in var.configuration.storage_accounts : k => {
-      default_action = try(v.network_rules.default_action, "Allow")
-      ip_rules      = try(v.network_rules.ip_rules, [])
-      subnet_ids    = try([
-        for subnet_key in v.network_rules.subnet_keys : var.subnet_ids[subnet_key]
-      ], [])
-    } if v.network_rules != null
+# Network Interfaces
+resource "azurerm_network_interface" "nic" {
+  for_each = var.configuration.vms
+
+  name                = "${each.value.name}-nic"
+  location            = data.azurerm_resource_group.rg[each.value.resource_group_key].location
+  resource_group_name = data.azurerm_resource_group.rg[each.value.resource_group_key].name
+
+  ip_configuration {
+    name                          = each.value.network_interface.ip_configuration.name
+    subnet_id                     = var.subnet_ids[each.value.network_interface.subnet_key]
+    private_ip_address_allocation = each.value.network_interface.ip_configuration.private_ip_address_allocation
   }
 }
 
-# Storage Accounts
-resource "azurerm_storage_account" "these" {
-  for_each = var.configuration.storage_accounts
+# Virtual Machines
+resource "azurerm_linux_virtual_machine" "vm" {
+  for_each = var.configuration.vms
 
   name                = each.value.name
   resource_group_name = data.azurerm_resource_group.rg[each.value.resource_group_key].name
   location            = data.azurerm_resource_group.rg[each.value.resource_group_key].location
+  size                = each.value.size
+  admin_username      = each.value.admin_username
   
-  account_tier             = each.value.tier
-  account_replication_type = each.value.replication_type
+  network_interface_ids = [
+    azurerm_network_interface.nic[each.key].id
+  ]
 
-  dynamic "network_rules" {
-    for_each = contains(keys(local.network_rules), each.key) ? [local.network_rules[each.key]] : []
-    content {
-      default_action             = network_rules.value.default_action
-      ip_rules                   = network_rules.value.ip_rules
-      virtual_network_subnet_ids = network_rules.value.subnet_ids
-    }
+  admin_ssh_key {
+    username   = each.value.admin_username
+    public_key = each.value.admin_ssh_key
+  }
+
+  os_disk {
+    name                 = each.value.os_disk.name
+    caching              = each.value.os_disk.caching
+    storage_account_type = each.value.os_disk.storage_account_type
+    disk_size_gb        = each.value.os_disk.disk_size_gb
+  }
+
+  source_image_reference {
+    publisher = each.value.source_image_reference.publisher
+    offer     = each.value.source_image_reference.offer
+    sku       = each.value.source_image_reference.sku
+    version   = each.value.source_image_reference.version
   }
 }
 ```
 
 ### 3. outputs.tf
 ```hcl
-output "storage_account_ids" {
-  description = "Mapa de storage_account_key a ID"
+output "virtual_machines" {
+  description = "Map of created virtual machines"
   value = {
-    for k, v in azurerm_storage_account.these : k => v.id
-  }
-}
-
-output "storage_account_primary_access_keys" {
-  description = "Mapa de storage_account_key a primary access key"
-  sensitive = true
-  value = {
-    for k, v in azurerm_storage_account.these : k => v.primary_access_key
+    for k, v in azurerm_linux_virtual_machine.vm : k => {
+      id                  = v.id
+      name                = v.name
+      resource_group_name = v.resource_group_name
+      private_ip_address  = azurerm_network_interface.nic[k].private_ip_address
+    }
   }
 }
 ```
 
-## Integración con el Orquestador
+## Integration with the Orchestrator
 
-### 1. Actualizar variables.tf del Orquestador
+### 1. Update Orchestrator's variables.tf
 ```hcl
 variable "configuration" {
   type = object({
     # ... existing configuration ...
-    storage = optional(object({
-      storage_accounts = map(object({
+    compute = optional(object({
+      vms = map(object({
         name                = string
         resource_group_key = string
-        tier               = string
-        replication_type   = string
-        network_rules = optional(object({
-          default_action    = string
-          ip_rules         = list(string)
-          subnet_keys      = list(string)
-        }))
+        size               = string
+        admin_username     = string
+        admin_ssh_key      = string
+        network_interface = object({
+          subnet_key = string
+          ip_configuration = object({
+            name                          = string
+            private_ip_address_allocation = string
+          })
+        })
+        os_disk = object({
+          name                 = string
+          caching              = string
+          storage_account_type = string
+          disk_size_gb        = number
+        })
+        source_image_reference = object({
+          publisher = string
+          offer     = string
+          sku       = string
+          version   = string
+        })
       }))
     }))
   })
 }
 ```
 
-### 2. Actualizar main.tf del Orquestador
+### 2. Update Orchestrator's main.tf
 ```hcl
-module "storage" {
-  source = "./modules/storage"
-  count  = var.configuration.storage != null ? 1 : 0
+module "compute" {
+  source = "./modules/compute"
+  count  = var.configuration.compute != null ? 1 : 0
 
-  configuration = var.configuration.storage
+  configuration = var.configuration.compute
   
   resource_group_ids = {
     for k, v in azurerm_resource_group.rg : k => v.name
@@ -183,112 +239,101 @@ module "storage" {
 }
 ```
 
-## Mejores Prácticas
+## Best Practices
 
-1. **Manejo de Dependencias**
-   - Usar `resource_group_key` en lugar de nombres directos
-   - Implementar data sources para recursos externos
-   - Usar `depends_on` solo cuando sea absolutamente necesario
+1. **Dependency Management**
+   - Use `resource_group_key` instead of direct names
+   - Implement data sources for external resources
+   - Use `depends_on` only when absolutely necessary
 
-2. **Validación de Entrada**
+2. **Input Validation**
 ```hcl
 variable "configuration" {
   # ... type definition ...
 
   validation {
     condition = alltrue([
-      for k, v in var.configuration.storage_accounts :
-      can(regex("^[a-z0-9]{3,24}$", v.name))
+      for k, v in var.configuration.vms :
+      can(regex("^[a-zA-Z0-9-]{1,64}$", v.name))
     ])
-    error_message = "Storage account names must be 3-24 characters long and contain only lowercase letters and numbers."
+    error_message = "VM names must be 1-64 characters long and contain only letters, numbers, and hyphens."
   }
 }
 ```
 
-3. **Manejo de Opcionales**
-   - Usar `optional()` para campos no requeridos
-   - Proporcionar valores por defecto sensatos
-   - Usar `try()` para manejar campos nulos
+3. **Optional Fields Handling**
+   - Use `optional()` for non-required fields
+   - Provide sensible defaults
+   - Use `try()` for handling null fields
 
-4. **Outputs Estandarizados**
-   - Siempre devolver IDs de recursos creados
-   - Usar nombres consistentes (ej: `resource_ids`)
-   - Marcar como `sensitive = true` datos sensibles
+4. **Standardized Outputs**
+   - Always return created resource IDs
+   - Use consistent naming (e.g., `resource_ids`)
+   - Mark sensitive data with `sensitive = true`
 
-5. **Documentación**
-   - README.md con ejemplos de uso
-   - Documentar cada variable y output
-   - Incluir validaciones y restricciones
+5. **Documentation**
+   - README.md with usage examples
+   - Document each variable and output
+   - Include validations and constraints
 
-## Ejemplo de Uso en JSON
+## Example JSON Configuration
 
 ```json
 {
-  "configuration": {
+  "iam_configuration": {
     "resource_groups": {
-      "rg1": {
-        "name": "example-rg",
-        "location": "eastus"
+      "test-rg": {
+        "name": "test-rg",
+        "location": "eastus",
+        "tags": {
+          "environment": "test"
+        }
       }
-    },
-    "storage": {
-      "storage_accounts": {
-        "sa1": {
-          "name": "examplesa1",
-          "resource_group_key": "rg1",
-          "tier": "Standard",
-          "replication_type": "LRS",
-          "network_rules": {
-            "default_action": "Deny",
-            "ip_rules": ["1.2.3.4/32"],
-            "subnet_keys": ["vnet1_subnet1"]
+    }
+  },
+  "network_configuration": {
+    "vnets": {
+      "test-vnet": {
+        "name": "test-vnet",
+        "resource_group_key": "test-rg",
+        "address_space": ["10.0.0.0/16"],
+        "subnets": {
+          "test-subnet": {
+            "name": "test-subnet",
+            "address_prefixes": ["10.0.1.0/24"]
           }
         }
       }
     }
-  }
-}
-```
-
-## Testing
-
-1. **Pruebas Unitarias**
-```hcl
-module "test_storage" {
-  source = "./modules/storage"
-
-  configuration = {
-    storage_accounts = {
-      "test_sa" = {
-        name                = "testsa"
-        resource_group_key = "rg1"
-        tier               = "Standard"
-        replication_type   = "LRS"
+  },
+  "compute_configuration": {
+    "vms": {
+      "test-vm": {
+        "name": "test-vm",
+        "resource_group_key": "test-rg",
+        "size": "Standard_B1s",
+        "admin_username": "azureuser",
+        "admin_ssh_key": "ssh-rsa YOUR_SSH_KEY",
+        "network_interface": {
+          "subnet_key": "test-subnet",
+          "ip_configuration": {
+            "name": "internal",
+            "private_ip_address_allocation": "Dynamic"
+          }
+        },
+        "os_disk": {
+          "name": "test-vm-osdisk",
+          "caching": "ReadWrite",
+          "storage_account_type": "Standard_LRS",
+          "disk_size_gb": 30
+        },
+        "source_image_reference": {
+          "publisher": "Canonical",
+          "offer": "UbuntuServer",
+          "sku": "18.04-LTS",
+          "version": "latest"
+        }
       }
     }
   }
-
-  resource_group_ids = {
-    "rg1" = "test-rg"
-  }
-
-  subnet_ids = {}
-}
-```
-
-2. **Pruebas de Integración**
-   - Probar con el orquestador completo
-   - Verificar referencias cruzadas
-   - Validar outputs en el orquestador
-
-## Consideraciones de Seguridad
-
-1. **Manejo de Secretos**
-   - Marcar variables sensibles
-   - No exponer secretos en outputs no sensibles
-   - Usar Key Vault para secretos cuando sea posible
-
-2. **Control de Acceso**
-   - Implementar reglas de red por defecto restrictivas
-   - Documentar permisos IAM requeridos
-   - Validar entradas para prevenir configuraciones inseguras 
+} 
