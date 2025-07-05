@@ -62,15 +62,15 @@ locals {
 
   network_dependency = var.network_configuration != null ? (
     var.network_configuration.vnets != null ? {
-      for key, vnet in azurerm_virtual_network.these : key => {
+      for key, vnet in module.azure_lz_network[0].virtual_networks : key => {
         id = vnet.id
         subnets = {
-          for subnet_key, subnet in azurerm_subnet.these : subnet_key => {
+          for subnet_key, subnet in module.azure_lz_network[0].subnets : subnet_key => {
             id = subnet.id
-          } if split("-", subnet_key)[0] == key
+          } if subnet.virtual_network == vnet.name
         }
         network_security_groups = var.network_configuration.network_security_groups != null ? {
-          for nsg_key, nsg in azurerm_network_security_group.these : nsg_key => {
+          for nsg_key, nsg in module.azure_lz_network[0].network_security_groups : nsg_key => {
             id = nsg.id
           }
         } : {}
@@ -80,7 +80,7 @@ locals {
 
   security_dependency = var.security_configuration != null ? (
     var.security_configuration.key_vaults != null ? {
-      for key, kv in azurerm_key_vault.these : key => {
+      for key, kv in module.azure_lz_security[0].key_vaults : key => {
         id = kv.id
       }
     } : {}

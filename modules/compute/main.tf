@@ -1,45 +1,46 @@
 # Copyright (c) 2024 Blake and/or its affiliates.
 # Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl.
 
-# Public IPs for VMs (if configured)
-resource "azurerm_public_ip" "vm" {
-  for_each = {
-    for k, v in var.configuration.vms : k => v
-    if try(v.public_ip, null) != null
-  }
-
-  name                = each.value.public_ip.name
-  resource_group_name = each.value.resource_group_name
-  location            = each.value.location
-  allocation_method   = each.value.public_ip.allocation_method
-  sku                = each.value.public_ip.sku
-  tags               = try(each.value.tags, null)
-}
-
 # Network Interfaces
 resource "azurerm_network_interface" "nic" {
-  for_each = var.configuration.vms
+  for_each = var.vms
 
-  name                = "${each.value.name}-nic"
-  location            = each.value.location
-  resource_group_name = each.value.resource_group_name
+  name                = try(each.value.network_interface.name, "${each.value.name}-nic")
+  location            = coalesce(try(each.value.location, null), var.resource_groups[each.value.resource_group_key].location)
+  resource_group_name = var.resource_groups[each.value.resource_group_key].name
   tags                = try(each.value.tags, null)
 
   ip_configuration {
-    name                          = "internal"
-    subnet_id                     = each.value.subnet_id
-    private_ip_address_allocation = "Dynamic"
-    public_ip_address_id         = try(each.value.public_ip, null) != null ? azurerm_public_ip.vm[each.key].id : null
+    name                          = try(each.value.network_interface.ip_configuration.name, "internal")
+    subnet_id                     = var.subnets["${var.get_vnet_key_for_subnet[each.value.network_interface.subnet_key]}-${each.value.network_interface.subnet_key}"].id
+    private_ip_address_allocation = each.value.network_interface.ip_configuration.private_ip_address_allocation
+    private_ip_address           = try(each.value.network_interface.ip_configuration.private_ip_address, null)
+    public_ip_address_id         = try(each.value.network_interface.ip_configuration.public_ip_address, null) != null ? azurerm_public_ip.vm[each.key].id : null
   }
+}
+
+# Public IPs for VMs (if configured)
+resource "azurerm_public_ip" "vm" {
+  for_each = {
+    for k, v in var.vms : k => v
+    if try(v.network_interface.ip_configuration.public_ip_address, null) != null
+  }
+
+  name                = each.value.network_interface.ip_configuration.public_ip_address.name
+  location            = coalesce(try(each.value.location, null), var.resource_groups[each.value.resource_group_key].location)
+  resource_group_name = var.resource_groups[each.value.resource_group_key].name
+  allocation_method   = each.value.network_interface.ip_configuration.public_ip_address.allocation_method
+  sku                = each.value.network_interface.ip_configuration.public_ip_address.sku
+  tags               = try(each.value.network_interface.ip_configuration.public_ip_address.tags, null)
 }
 
 # Linux Virtual Machines
 resource "azurerm_linux_virtual_machine" "vm" {
-  for_each = var.configuration.vms
+  for_each = var.vms
 
   name                = each.value.name
-  resource_group_name = each.value.resource_group_name
-  location            = each.value.location
+  resource_group_name = var.resource_groups[each.value.resource_group_key].name
+  location            = coalesce(try(each.value.location, null), var.resource_groups[each.value.resource_group_key].location)
   size                = each.value.size
   admin_username      = each.value.admin_username
   tags                = try(each.value.tags, null)
