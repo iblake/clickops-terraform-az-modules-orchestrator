@@ -1,0 +1,73 @@
+# Copyright (c) 2024 Blake and/or its affiliates.
+# Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl.
+
+# Network Interfaces
+resource "azurerm_network_interface" "these" {
+  for_each = var.compute_configuration != null ? (
+    var.compute_configuration.vms != null ? var.compute_configuration.vms : {}
+  ) : {}
+
+  name                = try(each.value.network_interface.name, "${each.value.name}-nic")
+  location            = coalesce(try(each.value.location, null), azurerm_resource_group.these[each.value.resource_group_key].location)
+  resource_group_name = azurerm_resource_group.these[each.value.resource_group_key].name
+  tags                = try(each.value.tags, null)
+
+  ip_configuration {
+    name                          = try(each.value.network_interface.ip_configuration.name, "internal")
+    subnet_id                     = azurerm_subnet.these["${each.value.resource_group_key}-${each.value.network_interface.subnet_key}"].id
+    private_ip_address_allocation = each.value.network_interface.ip_configuration.private_ip_address_allocation
+    private_ip_address           = try(each.value.network_interface.ip_configuration.private_ip_address, null)
+  }
+}
+
+# Public IPs for VMs (if configured)
+resource "azurerm_public_ip" "vm" {
+  for_each = {
+    for k, v in try(var.compute_configuration.vms, {}) : k => v
+    if try(v.network_interface.ip_configuration.public_ip_address, null) != null
+  }
+
+  name                = each.value.network_interface.ip_configuration.public_ip_address.name
+  location            = coalesce(try(each.value.location, null), azurerm_resource_group.these[each.value.resource_group_key].location)
+  resource_group_name = azurerm_resource_group.these[each.value.resource_group_key].name
+  allocation_method   = each.value.network_interface.ip_configuration.public_ip_address.allocation_method
+  sku                = each.value.network_interface.ip_configuration.public_ip_address.sku
+  tags               = try(each.value.network_interface.ip_configuration.public_ip_address.tags, null)
+}
+
+# Linux Virtual Machines
+resource "azurerm_linux_virtual_machine" "these" {
+  for_each = var.compute_configuration != null ? (
+    var.compute_configuration.vms != null ? var.compute_configuration.vms : {}
+  ) : {}
+
+  name                = each.value.name
+  resource_group_name = azurerm_resource_group.these[each.value.resource_group_key].name
+  location            = coalesce(try(each.value.location, null), azurerm_resource_group.these[each.value.resource_group_key].location)
+  size                = each.value.size
+  admin_username      = each.value.admin_username
+  tags                = try(each.value.tags, null)
+
+  network_interface_ids = [
+    azurerm_network_interface.these[each.key].id
+  ]
+
+  admin_ssh_key {
+    username   = each.value.admin_username
+    public_key = each.value.admin_ssh_key
+  }
+
+  os_disk {
+    name                 = try(each.value.os_disk.name, "${each.value.name}-osdisk")
+    caching              = each.value.os_disk.caching
+    storage_account_type = each.value.os_disk.storage_account_type
+    disk_size_gb        = each.value.os_disk.disk_size_gb
+  }
+
+  source_image_reference {
+    publisher = each.value.source_image_reference.publisher
+    offer     = each.value.source_image_reference.offer
+    sku       = each.value.source_image_reference.sku
+    version   = each.value.source_image_reference.version
+  }
+} 

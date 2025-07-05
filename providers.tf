@@ -24,11 +24,4 @@ data "azurerm_subscription" "current" {}
 
 data "azurerm_client_config" "current" {}
 
-locals {
-  # Get current subscription details
-  subscription_id = data.azurerm_subscription.current.subscription_id
-  tenant_id      = data.azurerm_client_config.current.tenant_id
 
-  # Default location if not specified
-  default_location = "eastus"
-}
