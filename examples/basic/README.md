@@ -196,4 +196,10 @@ terraform destroy
 4. **VM Access**:
    - VM is created without public IP for security
    - Access through private IP within VNet
-   - Use Azure Bastion or VPN for external access 
+   - Use Azure Bastion or VPN for external access
+
+## ⚠️ Important: Network and Subnet Creation
+
+By default, this example will always attempt to create the virtual network (VNet) and subnets defined in your configuration. If a VNet or subnet with the same name already exists in the target resource group, **Terraform will fail with a 'resource already exists' error**.
+
+If you want to use existing networks or subnets, you will need to adapt the code to use `data` sources and conditional logic. This feature is not yet implemented in the current version, but the codebase is structured to allow for this extension in the future. 
