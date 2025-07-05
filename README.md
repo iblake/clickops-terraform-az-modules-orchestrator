@@ -2,6 +2,25 @@
 
 This module provides a flexible and modular approach to managing Azure resources. It follows a similar structure to the OCI Landing Zones Orchestrator, allowing you to manage multiple resource types through a single, consistent configuration interface.
 
+## Authentication and Sensitive Parameters
+
+This orchestrator follows the exact same pattern as the OCI orchestrator for managing credentials and sensitive parameters:
+
+1. **Credentials Management**:
+   - Use `credentials.auto.tfvars.json` for authentication (same as OCI orchestrator)
+   - Never commit this file to version control (automatically excluded via .gitignore)
+   - Example file provided as `credentials.auto.tfvars.json.example`
+
+2. **Configuration Files**:
+   - Main configuration in `terraform.tfvars.json` (same as OCI orchestrator)
+   - Separates configuration from sensitive data
+   - Clear separation between infrastructure definition and credentials
+
+3. **Sensitive Parameters**:
+   - All sensitive variables are marked with `sensitive = true`
+   - Follows the same security practices as OCI orchestrator
+   - Credentials are never exposed in logs or outputs
+
 ## Features
 
 - **IAM Management**: Resource groups, roles, and role assignments

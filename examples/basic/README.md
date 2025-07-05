@@ -15,44 +15,35 @@ This example demonstrates how to use the Azure Orchestrator module to create a b
 
 ## Credential Configuration
 
-### Azure Credentials
-
-Azure credentials are configured through environment variables. Create an `azure-credentials.json` file with the following content:
+Create a `credentials.auto.tfvars.json` file based on the provided example:
 
 ```json
 {
-  "ARM_SUBSCRIPTION_ID": "your-subscription-id",
-  "ARM_TENANT_ID": "your-tenant-id",
-  "ARM_CLIENT_ID": "your-client-id",
-  "ARM_CLIENT_SECRET": "your-client-secret"
+  "subscription_id": "your-subscription-id",
+  "tenant_id": "your-tenant-id",
+  "client_id": "your-client-id",
+  "client_secret": "your-client-secret"
 }
 ```
 
-### SSH Key
-
-The SSH public key is configured through environment variables. Create an `ssh-credentials.json` file with the following content:
-
-```json
-{
-  "ssh_public_key": "your-ssh-public-key"
-}
-```
-
-To get your SSH public key, use:
-```bash
-cat ~/.ssh/id_rsa.pub
-```
-
-## Environment Variables Setup
-
-To configure the required environment variables:
+To create a Service Principal and get these credentials:
 
 ```bash
-# Azure Credentials
-export $(cat azure-credentials.json | jq -r 'to_entries | .[] | "\(.key)=\(.value)"')
+# Login to Azure
+az login
 
-# SSH Key
-export $(cat ssh-credentials.json | jq -r 'to_entries | .[] | "TF_VAR_\(.key)=\(.value)"')
+# Create Service Principal and get credentials
+az ad sp create-for-rbac --name "terraform-sp" --role contributor
+```
+
+The command output will contain the required credentials:
+- `appId` is your `client_id`
+- `password` is your `client_secret`
+- `tenant` is your `tenant_id`
+
+To get your subscription ID:
+```bash
+az account show --query id -o tsv
 ```
 
 ## Usage
@@ -138,7 +129,7 @@ The module uses a JSON configuration file (`terraform.tfvars.json`) to define re
 
 ## File Structure
 
-- `azure-credentials.json`: Azure credentials environment variables
+- `credentials.auto.tfvars.json`: Azure authentication credentials
 - `terraform.tfvars.json`: Resource configuration (resource groups, network, VMs)
 - `main.tf`: Main Terraform configuration
 - `outputs.tf`: Module outputs
@@ -161,7 +152,7 @@ terraform-azure-orchestrator/
 ## Security Notes
 
 1. NEVER commit real credentials to version control
-2. ALWAYS use environment variables for credentials
+2. Use `.gitignore` to exclude credential files
 3. Consider using Azure Key Vault for secrets management in production
 4. Rotate Service Principal credentials regularly
 5. Use minimal required permissions for Service Principal
@@ -183,9 +174,10 @@ terraform destroy
 
 ## Common Issues and Solutions
 
-1. **SSH Key Format**:
-   - Ensure the SSH key starts with "ssh-rsa"
-   - Key should be a single line without line breaks
+1. **Authentication Errors**:
+   - Ensure credentials are correct in credentials.auto.tfvars.json
+   - Verify Service Principal has sufficient permissions
+   - Check subscription is active and accessible
 
 2. **Resource Group Location**:
    - Default is "eastus" for Free Tier compatibility

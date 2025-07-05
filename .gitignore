@@ -13,9 +13,15 @@ crash.*.log
 *.tfvars
 *.tfvars.json
 
-# Except example tfvars files that don't contain sensitive data
-!example.tfvars.json
-!terraform.tfvars.json
+# Include tfvars files you do wish to add to version control using negated pattern
+!**/examples/**/*.tfvars.json
+!**/examples/**/*.tfvars.json.example
+
+# Exclude credentials files
+credentials.auto.tfvars.json
+**/credentials.auto.tfvars.json
+**/*credentials*.json
+!**/credentials*.json.example
 
 # Ignore override files as they are usually used to override resources locally
 override.tf
@@ -26,21 +32,9 @@ override.tf.json
 # Include override files you do wish to add to version control using negated pattern
 # !example_override.tf
 
-# Include tfvars files you do wish to add to version control using negated pattern
-!**/examples/**/*.tfvars.json
-
 # Ignore CLI configuration files
 .terraformrc
 terraform.rc
-
-# Ignore any files that might contain credentials
-*credentials*.json
-*.pem
-*.key
-id_rsa*
-.env
-*.env
-.envrc
 
 # IDE and editor files
 .vscode/
