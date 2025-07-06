@@ -59,6 +59,9 @@ terraform-azure-orchestrator/
 │   ├── compute/     # VM and related resources
 │   ├── iam/         # Identity and access management
 │   └── monitoring/  # Logging and alerting
+│   └── networking/  # Logging and networking
+│   └── security/    # Logging and security
+│   └── storage /    # Logging and storage
 ├── examples/
 │   ├── basic/       # Basic usage example
 │   └── existing-networks.tfvars.json  # Example with existing VNets
