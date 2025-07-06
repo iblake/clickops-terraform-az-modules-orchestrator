@@ -60,7 +60,8 @@ terraform-azure-orchestrator/
 │   ├── iam/         # Identity and access management
 │   └── monitoring/  # Logging and alerting
 ├── examples/
-│   └── basic/       # Basic usage example
+│   ├── basic/       # Basic usage example
+│   └── existing-networks.tfvars.json  # Example with existing VNets
 └── README.md
 ```
 
@@ -105,13 +106,15 @@ network_configuration = {
     key = {
       name                = string
       resource_group_key = string
-      address_space      = list(string)
+      address_space      = optional(list(string))
       dns_servers        = optional(list(string))
+      use_existing       = optional(bool, false)  # Set to true for existing VNets
       subnets = optional(map(object({
         name              = string
         address_prefixes  = list(string)
         security_group    = optional(string)
         service_endpoints = optional(list(string))
+        use_existing      = optional(bool, false)  # Set to true for existing subnets
         delegation = optional(map(object({
           name    = string
           actions = list(string)
@@ -137,6 +140,7 @@ network_configuration = {
     tags = optional(map(string))
   })))
 }
+```
 ```
 
 ### Security Configuration
@@ -337,8 +341,83 @@ storage_configuration = {
 
 This module is licensed under the MIT License. See the LICENSE file for details.
 
-## ⚠️ Important: Network and Subnet Creation
+## ✅ Network and Subnet Management
 
-By default, this orchestrator will always attempt to create the virtual network (VNet) and subnets defined in your configuration. If a VNet or subnet with the same name already exists in the target resource group, **Terraform will fail with a 'resource already exists' error**.
+This orchestrator supports both creating new networks/subnets and using existing ones through a flexible configuration approach:
 
-If you want to use existing networks or subnets, you will need to adapt the code to use `data` sources and conditional logic. This feature is not yet implemented in the current version, but the codebase is structured to allow for this extension in the future. 
+### **New Resources (Default Behavior)**
+By default, VNets and subnets are created as defined in your configuration:
+
+```json
+{
+  "network_configuration": {
+    "vnets": {
+      "new-vnet": {
+        "name": "my-new-vnet",
+        "resource_group_key": "my-rg",
+        "address_space": ["10.0.0.0/16"]
+      }
+    }
+  }
+}
+```
+
+### **Existing Resources**
+Use `use_existing: true` to reference existing VNets/subnets without creating new ones:
+
+```json
+{
+  "network_configuration": {
+    "vnets": {
+      "existing-vnet": {
+        "name": "my-existing-vnet",
+        "resource_group_key": "my-rg",
+        "use_existing": true
+      }
+    }
+  }
+}
+```
+
+### **Mixed Approach**
+You can combine both approaches in the same configuration:
+
+```json
+{
+  "network_configuration": {
+    "vnets": {
+      "existing-vnet": {
+        "name": "my-existing-vnet",
+        "resource_group_key": "my-rg",
+        "use_existing": true
+      },
+      "new-vnet": {
+        "name": "my-new-vnet",
+        "resource_group_key": "my-rg",
+        "address_space": ["10.1.0.0/16"]
+      }
+    }
+  }
+}
+```
+
+**Complete Example**: See [`examples/existing-networks.tfvars.json`](./examples/existing-networks.tfvars.json) for a full example that demonstrates using existing VNets alongside new resources.
+
+### **Key Features**
+- ✅ **Automatic Detection**: The orchestrator automatically detects whether to create or reference existing resources
+- ✅ **Seamless Integration**: Existing and new resources work together seamlessly
+- ✅ **Output Consistency**: All resources (new and existing) are included in the module outputs
+- ✅ **Error Prevention**: No more "resource already exists" errors when using existing networks
+
+### **Configuration Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `use_existing` | boolean | No | Set to `true` to reference existing VNet/subnet instead of creating new one |
+| `name` | string | Yes | Name of the VNet/subnet (must match existing resource if `use_existing: true`) |
+| `resource_group_key` | string | Yes | Key reference to the resource group |
+| `address_space` | list(string) | No* | Address space for new VNets (*required if `use_existing: false`) |
+
+*Note: When `use_existing: true`, the orchestrator will read the address space from the existing resource.*
+
+For detailed information about using existing networks, see [EXISTING_NETWORKS.md](./EXISTING_NETWORKS.md). 
