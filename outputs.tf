@@ -3,35 +3,7 @@
 # IAM Resources Output
 output "iam_resources" {
   description = "Details of all IAM resources created"
-  value = {
-    resource_groups = var.iam_configuration != null ? (
-      var.iam_configuration.resource_groups != null ? {
-        for key, rg in azurerm_resource_group.these : key => {
-          id       = rg.id
-          name     = rg.name
-          location = rg.location
-        }
-      } : {}
-    ) : {}
-    roles = var.iam_configuration != null ? (
-      var.iam_configuration.roles != null ? {
-        for key, role in azurerm_role_definition.these : key => {
-          id          = role.role_definition_id
-          name        = role.name
-          description = role.description
-        }
-      } : {}
-    ) : {}
-    role_assignments = var.iam_configuration != null ? (
-      var.iam_configuration.role_assignments != null ? {
-        for key, assignment in azurerm_role_assignment.these : key => {
-          id           = assignment.id
-          principal_id = assignment.principal_id
-          scope        = assignment.scope
-        }
-      } : {}
-    ) : {}
-  }
+  value = var.iam_configuration != null ? module.azure_lz_iam[0].resource_groups : {}
 }
 
 # Network Resources Output
@@ -49,28 +21,10 @@ output "security_resources" {
 # Monitoring Resources Output
 output "monitoring_resources" {
   description = "Details of all monitoring resources created"
-  value = {
-    log_analytics = var.monitoring_configuration != null ? (
-      var.monitoring_configuration.log_analytics != null ? {
-        for key, la in azurerm_log_analytics_workspace.these : key => {
-          id                  = la.id
-          name                = la.name
-          resource_group_name = la.resource_group_name
-          workspace_id        = la.workspace_id
-        }
-      } : {}
-    ) : {}
-    alerts = var.monitoring_configuration != null ? (
-      var.monitoring_configuration.alerts != null ? {
-        for key, alert in azurerm_monitor_metric_alert.these : key => {
-          id          = alert.id
-          name        = alert.name
-          description = alert.description
-          severity    = alert.severity
-        }
-      } : {}
-    ) : {}
-  }
+  value = var.monitoring_configuration != null ? {
+    log_analytics = module.azure_lz_monitoring[0].log_analytics
+    alerts = module.azure_lz_monitoring[0].alerts
+  } : {}
 }
 
 # Compute Resources Output
