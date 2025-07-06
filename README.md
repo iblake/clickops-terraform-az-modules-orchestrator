@@ -141,7 +141,6 @@ network_configuration = {
   })))
 }
 ```
-```
 
 ### Security Configuration
 
