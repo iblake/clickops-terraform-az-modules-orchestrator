@@ -1,71 +1,25 @@
-# Azure Orchestrator Basic Example
+# Basic Azure Infrastructure Example
 
-This example demonstrates how to use the Azure Orchestrator module to create a basic infrastructure that includes:
-- Resource Groups
-- Virtual Network with subnet
-- Linux Virtual Machine with networking
+This example demonstrates how to use the Azure Terraform Orchestrator to create a basic infrastructure setup with networking, storage, and compute resources using a modular approach.
+
+## Architecture
+
+This example creates:
+- **Resource Groups**: Centralized resource management (IAM module)
+- **Virtual Network**: With subnets for different tiers (Networking module)
+- **Virtual Machine**: Linux VM with network interface (Compute module)
 
 ## Prerequisites
 
-1. Azure Subscription
-2. Azure CLI installed and configured
-3. Terraform >= 1.0.0
-4. Azure Service Principal with required permissions
-5. SSH key pair for VM access
+1. Azure CLI installed and configured
+2. Terraform >= 1.0
+3. Azure subscription with appropriate permissions
 
-## Credential Configuration
+## Configuration Files
 
-Create a `credentials.auto.tfvars.json` file based on the provided example:
+This example uses a modular approach with separate configuration files for each module:
 
-```json
-{
-  "subscription_id": "your-subscription-id",
-  "tenant_id": "your-tenant-id",
-  "client_id": "your-client-id",
-  "client_secret": "your-client-secret"
-}
-```
-
-To create a Service Principal and get these credentials:
-
-```bash
-# Login to Azure
-az login
-
-# Create Service Principal and get credentials
-az ad sp create-for-rbac --name "terraform-sp" --role contributor
-```
-
-The command output will contain the required credentials:
-- `appId` is your `client_id`
-- `password` is your `client_secret`
-- `tenant` is your `tenant_id`
-
-To get your subscription ID:
-```bash
-az account show --query id -o tsv
-```
-
-## Usage
-
-1. Configure credentials as described above
-2. Initialize Terraform:
-   ```bash
-   terraform init
-   ```
-3. Review the plan:
-   ```bash
-   terraform plan
-   ```
-4. Apply changes:
-   ```bash
-   terraform apply
-   ```
-
-## Configuration Example
-
-The module uses a JSON configuration file (`terraform.tfvars.json`) to define resources:
-
+### IAM Configuration (`iam.tfvars.json`)
 ```json
 {
   "iam_configuration": {
@@ -78,7 +32,13 @@ The module uses a JSON configuration file (`terraform.tfvars.json`) to define re
         }
       }
     }
-  },
+  }
+}
+```
+
+### Networking Configuration (`networking.tfvars.json`)
+```json
+{
   "network_configuration": {
     "vnets": {
       "test-vnet": {
@@ -93,7 +53,13 @@ The module uses a JSON configuration file (`terraform.tfvars.json`) to define re
         }
       }
     }
-  },
+  }
+}
+```
+
+### Compute Configuration (`compute.tfvars.json`)
+```json
+{
   "compute_configuration": {
     "vms": {
       "test-vm": {
@@ -101,7 +67,7 @@ The module uses a JSON configuration file (`terraform.tfvars.json`) to define re
         "resource_group_key": "test-rg",
         "size": "Standard_B1s",
         "admin_username": "azureuser",
-        "admin_ssh_key": "ssh-rsa YOUR_SSH_KEY",
+        "admin_ssh_key": "ssh-rsa YOUR_PUBLIC_KEY_HERE",
         "network_interface": {
           "subnet_key": "test-subnet",
           "ip_configuration": {
@@ -127,79 +93,141 @@ The module uses a JSON configuration file (`terraform.tfvars.json`) to define re
 }
 ```
 
-## Module Structure
+## Usage
 
-This orchestrator follows the same pattern as the OCI orchestrator with resources organized by functionality:
+1. **Update the configuration files**:
+   - Replace `YOUR_PUBLIC_KEY_HERE` in `compute.tfvars.json` with your actual SSH public key
+   - Modify resource names and locations as needed
+   - Update the `resource_group_key` references to match your resource group names
 
-```
-terraform-azure-orchestrator/
-├── iam.tf           # Resource groups, roles, role assignments
-├── networking.tf    # Virtual networks, subnets, network security groups
-├── compute.tf       # Virtual machines and network interfaces
-├── storage.tf       # Storage accounts, containers, file shares
-├── security.tf      # Key vaults and bastion hosts
-├── monitoring.tf    # Log analytics workspaces and metric alerts
-├── main.tf          # Main entry point (simplified)
-├── variables.tf     # Input variable definitions
-├── outputs.tf       # Output definitions
-├── locals.tf        # Local variable definitions
-├── versions.tf      # Version constraints
-├── providers.tf     # Provider configuration
-├── modules/         # Additional modules (if needed)
-│   ├── compute/     # VM and related resources
-│   ├── iam/         # Identity and access management
-│   └── monitoring/  # Logging and alerting
-├── examples/
-│   └── basic/       # This example
-└── README.md
-```
+2. **Initialize Terraform**:
+   ```bash
+   terraform init
+   ```
 
-## Security Notes
+3. **Plan the deployment**:
+   ```bash
+   terraform plan -var-file="iam.tfvars.json" -var-file="networking.tfvars.json" -var-file="compute.tfvars.json"
+   ```
 
-1. NEVER commit real credentials to version control
-2. Use `.gitignore` to exclude credential files
-3. Consider using Azure Key Vault for secrets management in production
-4. Rotate Service Principal credentials regularly
-5. Use minimal required permissions for Service Principal
+4. **Apply the configuration**:
+   ```bash
+   terraform apply -var-file="iam.tfvars.json" -var-file="networking.tfvars.json" -var-file="compute.tfvars.json"
+   ```
 
-## Cost Considerations
+5. **Access your resources**:
+   - VM: Use the private IP address with SSH (through VPN or bastion host)
+   - Resource Groups: Manage through Azure Portal
 
-1. Standard_B1s VM is Free Tier eligible for 12 months
-2. Standard_LRS storage is Free Tier eligible
-3. Virtual Network usage is free
-4. Network Interface is free
-5. Total cost after Free Tier: ~$9-10/month
+## Modular Approach Benefits
+
+This example demonstrates the benefits of using separate configuration files:
+
+### Flexibility
+- **Selective Deployment**: Deploy only the modules you need
+- **Environment Management**: Use different configurations for dev, staging, and production
+- **Team Collaboration**: Different teams can manage their own configuration files
+
+### Maintainability
+- **Clear Separation**: Each module has its own configuration file
+- **Easier Updates**: Modify specific modules without affecting others
+- **Version Control**: Track changes per module
+
+### Reusability
+- **Module Reuse**: Use the same module configuration across different projects
+- **Template Creation**: Create templates for common configurations
+- **Standardization**: Enforce consistent configurations across environments
+
+## Module Integration
+
+This example demonstrates how the orchestrator modules work together:
+
+### IAM Module
+- Creates and manages resource groups
+- Handles role assignments and permissions
+- Provides centralized resource management
+
+### Networking Module
+- Creates the virtual network and subnets
+- Configures network security groups
+- Establishes the network foundation
+
+### Compute Module
+- Creates virtual machines
+- Configures network interfaces
+- Manages OS disks and image references
+
+## Outputs
+
+After successful deployment, you can access:
+
+- **Resource Groups**: View in Azure Portal
+- **Virtual Network**: Manage subnets and network settings
+- **VM Connection**: SSH to the private IP address (requires VPN or bastion)
 
 ## Cleanup
 
-To remove all resources:
+To destroy the infrastructure:
+
 ```bash
-terraform destroy
+terraform destroy -var-file="iam.tfvars.json" -var-file="networking.tfvars.json" -var-file="compute.tfvars.json"
 ```
 
-## Common Issues and Solutions
+## Customization
 
-1. **Authentication Errors**:
-   - Ensure credentials are correct in credentials.auto.tfvars.json
-   - Verify Service Principal has sufficient permissions
-   - Check subscription is active and accessible
+You can customize this example by:
 
-2. **Resource Group Location**:
-   - Default is "eastus" for Free Tier compatibility
-   - Can be changed in resource group configuration
+1. **Adding more resource groups**: Extend the IAM configuration
+2. **Creating additional subnets**: Extend the networking configuration
+3. **Adding more VMs**: Extend the compute configuration
+4. **Including other modules**: Add storage, security, or monitoring configurations
 
-3. **Network Configuration**:
-   - VNet and Subnet are automatically created
-   - Default VNet range is 10.0.0.0/16
-   - Default Subnet range is 10.0.1.0/24
+## Advanced Usage
 
-4. **VM Access**:
-   - VM is created without public IP for security
-   - Access through private IP within VNet
-   - Use Azure Bastion or VPN for external access
+### Partial Deployments
+Deploy only specific modules:
 
-## ⚠️ Important: Network and Subnet Creation
+```bash
+# Deploy only IAM and networking
+terraform apply -var-file="iam.tfvars.json" -var-file="networking.tfvars.json"
 
-By default, this example will always attempt to create the virtual network (VNet) and subnets defined in your configuration. If a VNet or subnet with the same name already exists in the target resource group, **Terraform will fail with a 'resource already exists' error**.
+# Deploy only compute (requires networking to exist)
+terraform apply -var-file="compute.tfvars.json"
+```
 
-If you want to use existing networks or subnets, you will need to adapt the code to use `data` sources and conditional logic. This feature is not yet implemented in the current version, but the codebase is structured to allow for this extension in the future. 
+### Environment-Specific Configurations
+Create environment-specific files:
+
+```bash
+# Development environment
+terraform apply -var-file="iam-dev.tfvars.json" -var-file="networking-dev.tfvars.json" -var-file="compute-dev.tfvars.json"
+
+# Production environment
+terraform apply -var-file="iam-prod.tfvars.json" -var-file="networking-prod.tfvars.json" -var-file="compute-prod.tfvars.json"
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Authentication Errors**: Ensure Azure CLI is properly configured
+2. **Resource Name Conflicts**: Azure resource names must be globally unique
+3. **Permission Errors**: Verify your Azure account has necessary permissions
+4. **Module Dependencies**: Ensure modules are deployed in the correct order
+
+### Debugging
+
+1. Use `terraform plan` to preview changes
+2. Check Azure Portal for resource status
+3. Review Terraform logs for detailed error messages
+4. Validate configuration syntax with `terraform validate`
+
+## Next Steps
+
+After successfully deploying this basic example:
+
+1. **Explore Advanced Features**: Try adding storage and security modules
+2. **Customize Configuration**: Modify the JSON files to match your requirements
+3. **Add Monitoring**: Include monitoring module configurations
+4. **Implement Security**: Add security module with key vaults and NSGs
+5. **Scale Resources**: Add more VMs, storage, or networking components
